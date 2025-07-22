@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X, Gamepad2, Zap, Target } from 'lucide-react'
+import { X, Gamepad2, Zap, Keyboard } from 'lucide-react'
 
 const EasterEggs = ({ isOpen, onClose }) => {
   const [selectedGame, setSelectedGame] = useState(null)
@@ -14,11 +14,11 @@ const EasterEggs = ({ isOpen, onClose }) => {
       component: SnakeGame
     },
     {
-      id: 'breakout',
-      name: 'Node Breaker',
-      description: 'Break through the firewall nodes',
-      icon: Target,
-      component: BreakoutGame
+      id: 'typing',
+      name: 'Neural Type',
+      description: 'Test your typing speed in 30 seconds',
+      icon: Keyboard,
+      component: TypingTestGame
     }
   ]
 
@@ -319,19 +319,250 @@ const SnakeGame = () => {
   )
 }
 
-// Simple Breakout Game
-const BreakoutGame = () => {
+// Typing Test Game
+const TypingTestGame = () => {
+  const [gameState, setGameState] = useState('ready') // 'ready', 'playing', 'finished'
+  const [timeLeft, setTimeLeft] = useState(30)
+  const [currentWordIndex, setCurrentWordIndex] = useState(0)
+  const [currentCharIndex, setCurrentCharIndex] = useState(0)
+  const [userInput, setUserInput] = useState('')
+  const [correctChars, setCorrectChars] = useState(0)
+  const [totalChars, setTotalChars] = useState(0)
+  const [wpm, setWpm] = useState(0)
+  const [accuracy, setAccuracy] = useState(100)
+  const [words, setWords] = useState([])
+
+  // Word pool for generating random text
+  const wordPool = [
+    'system', 'circuit', 'neural', 'code', 'binary', 'data', 'function', 'array', 'object', 'variable',
+    'algorithm', 'structure', 'memory', 'process', 'thread', 'stack', 'queue', 'hash', 'loop', 'condition',
+    'network', 'protocol', 'server', 'client', 'database', 'query', 'index', 'table', 'field', 'record',
+    'interface', 'module', 'component', 'library', 'framework', 'runtime', 'compile', 'debug', 'optimize',
+    'encrypt', 'decode', 'parse', 'render', 'execute', 'initialize', 'configure', 'validate', 'authenticate'
+  ]
+
+  // Generate random text
+  const generateText = () => {
+    const shuffled = [...wordPool].sort(() => Math.random() - 0.5)
+    return shuffled.slice(0, 50) // Get 50 random words
+  }
+
+  const startGame = () => {
+    const newWords = generateText()
+    setWords(newWords)
+    setGameState('playing')
+    setTimeLeft(30)
+    setCurrentWordIndex(0)
+    setCurrentCharIndex(0)
+    setUserInput('')
+    setCorrectChars(0)
+    setTotalChars(0)
+    setWpm(0)
+    setAccuracy(100)
+  }
+
+  const resetGame = () => {
+    setGameState('ready')
+    setTimeLeft(30)
+    setCurrentWordIndex(0)
+    setCurrentCharIndex(0)
+    setUserInput('')
+    setCorrectChars(0)
+    setTotalChars(0)
+    setWpm(0)
+    setAccuracy(100)
+    setWords([])
+  }
+
+  // Timer effect
+  useEffect(() => {
+    if (gameState === 'playing' && timeLeft > 0) {
+      const timer = setTimeout(() => {
+        setTimeLeft(prev => prev - 1)
+      }, 1000)
+      return () => clearTimeout(timer)
+    } else if (timeLeft === 0 && gameState === 'playing') {
+      setGameState('finished')
+      // Calculate final WPM
+      const wordsTyped = totalChars / 5 // Standard: 5 characters = 1 word
+      const finalWpm = Math.round((wordsTyped / 30) * 60)
+      setWpm(finalWpm)
+    }
+  }, [gameState, timeLeft]) // Removed totalChars dependency to prevent timer reset
+
+  // Handle typing
+  const handleKeyPress = useCallback((e) => {
+    if (gameState !== 'playing') return
+
+    const currentWord = words[currentWordIndex]
+    const currentChar = currentWord?.[currentCharIndex]
+
+    if (e.key === ' ') {
+      e.preventDefault()
+      // Move to next word if current word is complete
+      if (currentCharIndex === currentWord.length) {
+        setCurrentWordIndex(prev => prev + 1)
+        setCurrentCharIndex(0)
+        setUserInput('')
+      }
+      return
+    }
+
+    if (e.key === 'Backspace') {
+      if (currentCharIndex > 0) {
+        setCurrentCharIndex(prev => prev - 1)
+        setUserInput(prev => prev.slice(0, -1))
+      }
+      return
+    }
+
+    // Only accept printable characters
+    if (e.key.length === 1 && currentChar) {
+      const newInput = userInput + e.key
+      setUserInput(newInput)
+      setTotalChars(prev => prev + 1)
+
+      if (e.key === currentChar) {
+        setCorrectChars(prev => prev + 1)
+        setCurrentCharIndex(prev => prev + 1)
+      } else {
+        setCurrentCharIndex(prev => prev + 1)
+      }
+
+      // Calculate real-time accuracy
+      const newAccuracy = Math.round(((correctChars + (e.key === currentChar ? 1 : 0)) / (totalChars + 1)) * 100)
+      setAccuracy(newAccuracy)
+    }
+  }, [gameState, words, currentWordIndex, currentCharIndex, userInput, correctChars, totalChars, timeLeft])
+
+  useEffect(() => {
+    if (gameState === 'playing') {
+      document.addEventListener('keydown', handleKeyPress)
+      return () => document.removeEventListener('keydown', handleKeyPress)
+    }
+  }, [handleKeyPress, gameState])
+
+  // Calculate WPM every second
+  useEffect(() => {
+    if (gameState === 'playing') {
+      const wpmTimer = setInterval(() => {
+        const elapsed = 30 - timeLeft
+        if (elapsed > 0) {
+          const wordsTyped = totalChars / 5 // Standard: 5 characters = 1 word
+          const currentWpm = Math.round((wordsTyped / elapsed) * 60)
+          setWpm(currentWpm)
+        }
+      }, 1000)
+      return () => clearInterval(wpmTimer)
+    }
+  }, [gameState, timeLeft, totalChars])
+
+  // Render text with highlighting
+  const renderText = () => {
+    return words.slice(currentWordIndex, currentWordIndex + 10).map((word, wordIdx) => (
+      <span key={wordIdx} className="inline-block mr-2">
+        {word.split('').map((char, charIdx) => {
+          const isCurrentWord = wordIdx === 0
+          const isCurrentChar = isCurrentWord && charIdx === currentCharIndex
+          const isTyped = isCurrentWord && charIdx < currentCharIndex
+          const isCorrect = isTyped && userInput[charIdx] === char
+          
+          return (
+            <span
+              key={charIdx}
+              className={`
+                ${isCurrentChar ? 'bg-circuit-glow text-circuit-bg' : ''}
+                ${isTyped ? (isCorrect ? 'text-circuit-glow' : 'text-red-500 bg-red-500/20') : 'text-circuit-muted'}
+                ${!isTyped && !isCurrentChar ? 'text-circuit-text' : ''}
+              `}
+            >
+              {char}
+            </span>
+          )
+        })}
+      </span>
+    ))
+  }
+
   return (
-    <div className="text-center space-y-4">
-      <div className="flex justify-center items-center h-64 border-2 border-circuit-glow bg-circuit-bg rounded-lg">
-        <div className="text-center space-y-4">
-          <Target className="text-circuit-glow mx-auto" size={48} />
-          <h3 className="font-mono text-circuit-glow text-xl">Node Breaker</h3>
-          <p className="font-mono text-circuit-muted">Coming Soon...</p>
-          <p className="font-mono text-xs text-circuit-muted">
-            This game is still being compiled in the background!
-          </p>
+    <div className="space-y-6">
+      {/* Stats Header */}
+      <div className="grid grid-cols-3 gap-4 text-center">
+        <div className="bg-circuit-dark border border-circuit-trace rounded-lg p-3">
+          <div className="text-2xl font-mono font-bold text-circuit-glow">{timeLeft}</div>
+          <div className="text-xs text-circuit-muted">Time</div>
         </div>
+        <div className="bg-circuit-dark border border-circuit-trace rounded-lg p-3">
+          <div className="text-2xl font-mono font-bold text-circuit-glow">{wpm}</div>
+          <div className="text-xs text-circuit-muted">WPM</div>
+        </div>
+        <div className="bg-circuit-dark border border-circuit-trace rounded-lg p-3">
+          <div className="text-2xl font-mono font-bold text-circuit-glow">{accuracy}%</div>
+          <div className="text-xs text-circuit-muted">Accuracy</div>
+        </div>
+      </div>
+
+      {/* Game Area */}
+      <div className="bg-circuit-bg border-2 border-circuit-glow rounded-lg p-6 min-h-[200px]">
+        {gameState === 'ready' && (
+          <div className="text-center space-y-4">
+            <Keyboard className="text-circuit-glow mx-auto" size={48} />
+            <h3 className="font-mono text-circuit-glow text-xl">Neural Type Test</h3>
+            <p className="font-mono text-circuit-muted">
+              Type the words as fast and accurately as you can!
+            </p>
+            <button
+              onClick={startGame}
+              className="px-6 py-3 bg-circuit-glow text-circuit-bg font-mono font-bold rounded-lg
+                       hover:bg-circuit-hover transition-colors"
+            >
+              Start Test
+            </button>
+          </div>
+        )}
+
+        {gameState === 'playing' && (
+          <div className="space-y-4">
+            <div className="font-mono text-lg leading-relaxed text-left">
+              {renderText()}
+            </div>
+            <div className="text-center text-sm text-circuit-muted font-mono">
+              Type the highlighted text • Press SPACE after each word
+            </div>
+          </div>
+        )}
+
+        {gameState === 'finished' && (
+          <div className="text-center space-y-4">
+            <h3 className="font-mono text-circuit-glow text-xl">Test Complete!</h3>
+            <div className="grid grid-cols-2 gap-4 max-w-md mx-auto">
+              <div className="bg-circuit-dark border border-circuit-trace rounded-lg p-4">
+                <div className="text-2xl font-mono font-bold text-circuit-glow">{wpm}</div>
+                <div className="text-sm text-circuit-muted">Words per Minute</div>
+              </div>
+              <div className="bg-circuit-dark border border-circuit-trace rounded-lg p-4">
+                <div className="text-2xl font-mono font-bold text-circuit-glow">{accuracy}%</div>
+                <div className="text-sm text-circuit-muted">Accuracy</div>
+              </div>
+            </div>
+            <div className="space-x-4">
+              <button
+                onClick={startGame}
+                className="px-6 py-3 bg-circuit-glow text-circuit-bg font-mono font-bold rounded-lg
+                         hover:bg-circuit-hover transition-colors"
+              >
+                Try Again
+              </button>
+              <button
+                onClick={resetGame}
+                className="px-6 py-3 border border-circuit-trace text-circuit-glow font-mono font-bold rounded-lg
+                         hover:border-circuit-glow transition-colors"
+              >
+                Back to Menu
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )
