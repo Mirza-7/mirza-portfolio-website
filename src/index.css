@@ -1,0 +1,65 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    scroll-behavior: smooth;
+  }
+  
+  body {
+    font-family: 'Inter', system-ui, sans-serif;
+    background: #0a0a0a;
+    overflow-x: hidden;
+  }
+  
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 8px;
+  }
+  
+  ::-webkit-scrollbar-track {
+    background: #111111;
+  }
+  
+  ::-webkit-scrollbar-thumb {
+    background: #333333;
+    border-radius: 4px;
+  }
+  
+  ::-webkit-scrollbar-thumb:hover {
+    background: #00ff88;
+  }
+}
+
+@layer components {
+  .circuit-node {
+    @apply relative bg-circuit-node border border-circuit-trace rounded-lg p-6 transition-all duration-300;
+    @apply hover:border-circuit-glow hover:shadow-lg hover:shadow-circuit-glow/20;
+  }
+  
+  .circuit-trace {
+    @apply absolute bg-gradient-to-r from-transparent via-circuit-glow to-transparent;
+    height: 2px;
+    animation: circuit-flow 3s linear infinite;
+  }
+  
+  .glow-text {
+    @apply text-circuit-glow;
+    text-shadow: 0 0 10px theme(colors.circuit.glow);
+  }
+  
+  .tech-badge {
+    @apply px-3 py-1 bg-circuit-dark border border-circuit-trace rounded-full text-sm;
+    @apply transition-all duration-300 hover:border-circuit-glow hover:text-circuit-glow;
+  }
+  
+  .project-card {
+    @apply bg-circuit-dark border border-circuit-trace rounded-lg p-4 transition-all duration-300;
+    @apply hover:border-circuit-glow hover:shadow-lg hover:shadow-circuit-glow/20 hover:scale-[1.02];
+  }
+  
+  .boot-animation {
+    animation: boot-up 2s ease-out;
+  }
+}
