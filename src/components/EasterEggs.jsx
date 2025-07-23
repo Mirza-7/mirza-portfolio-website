@@ -7,11 +7,11 @@ const EasterEggs = ({ isOpen, onClose }) => {
 
   const games = [
     {
-      id: 'snake',
-      name: 'Circuit Snake',
-      description: 'Guide the data packet through the circuit board',
+      id: 'pong',
+      name: 'Neural Pong',
+      description: 'Classic ping pong with a cyberpunk twist',
       icon: Zap,
-      component: SnakeGame
+      component: PingPongGame
     },
     {
       id: 'typing',
@@ -151,143 +151,269 @@ const EasterEggs = ({ isOpen, onClose }) => {
   )
 }
 
-// Simple Snake Game
-const SnakeGame = () => {
-  const [gameState, setGameState] = useState('ready') // 'ready', 'playing', 'gameOver'
-  const [score, setScore] = useState(0)
-  const [snake, setSnake] = useState([{ x: 10, y: 10 }])
-  const [food, setFood] = useState({ x: 15, y: 15 })
-  const [direction, setDirection] = useState({ x: 0, y: 0 })
+// Neural Ping Pong Game
+const PingPongGame = () => {
+  const [gameState, setGameState] = useState('ready') // 'ready', 'playing', 'paused', 'gameOver'
+  const [playerScore, setPlayerScore] = useState(0)
+  const [aiScore, setAiScore] = useState(0)
+  const [gameSpeed, setGameSpeed] = useState(1)
+  
+  // Game dimensions
+  const gameWidth = 600
+  const gameHeight = 400
+  const paddleWidth = 8
+  const paddleHeight = 80
+  const ballSize = 8
+  
+  // Game objects
+  const [playerPaddle, setPlayerPaddle] = useState({ y: gameHeight / 2 - paddleHeight / 2 })
+  const [aiPaddle, setAiPaddle] = useState({ y: gameHeight / 2 - paddleHeight / 2 })
+  const [ball, setBall] = useState({
+    x: gameWidth / 2,
+    y: gameHeight / 2,
+    dx: 3,
+    dy: 2
+  })
 
-  const gridSize = 20
-  const canvasSize = 400
+  const [keys, setKeys] = useState({})
 
   const startGame = () => {
     setGameState('playing')
-    setScore(0)
-    setSnake([{ x: 10, y: 10 }])
-    setFood({ x: 15, y: 15 })
-    setDirection({ x: 1, y: 0 })
+    setPlayerScore(0)
+    setAiScore(0)
+    setGameSpeed(1)
+    setBall({
+      x: gameWidth / 2,
+      y: gameHeight / 2,
+      dx: Math.random() > 0.5 ? 3 : -3,
+      dy: (Math.random() - 0.5) * 4
+    })
+    setPlayerPaddle({ y: gameHeight / 2 - paddleHeight / 2 })
+    setAiPaddle({ y: gameHeight / 2 - paddleHeight / 2 })
   }
 
   const resetGame = () => {
     setGameState('ready')
-    setScore(0)
-    setSnake([{ x: 10, y: 10 }])
-    setFood({ x: 15, y: 15 })
-    setDirection({ x: 0, y: 0 })
+    setPlayerScore(0)
+    setAiScore(0)
+    setGameSpeed(1)
+    setBall({
+      x: gameWidth / 2,
+      y: gameHeight / 2,
+      dx: 3,
+      dy: 2
+    })
+    setPlayerPaddle({ y: gameHeight / 2 - paddleHeight / 2 })
+    setAiPaddle({ y: gameHeight / 2 - paddleHeight / 2 })
   }
 
-  // Game controls
-  const handleKeyPress = useCallback((e) => {
-    if (gameState !== 'playing') return
+  const pauseGame = () => {
+    setGameState(gameState === 'playing' ? 'paused' : 'playing')
+  }
 
-    switch (e.key) {
-      case 'ArrowUp':
-        if (direction.y === 0) setDirection({ x: 0, y: -1 })
-        break
-      case 'ArrowDown':
-        if (direction.y === 0) setDirection({ x: 0, y: 1 })
-        break
-      case 'ArrowLeft':
-        if (direction.x === 0) setDirection({ x: -1, y: 0 })
-        break
-      case 'ArrowRight':
-        if (direction.x === 0) setDirection({ x: 1, y: 0 })
-        break
+  // Controls
+  const handleKeyDown = useCallback((e) => {
+    setKeys(prev => ({ ...prev, [e.key]: true }))
+    if (e.key === ' ') {
+      e.preventDefault()
+      if (gameState === 'playing' || gameState === 'paused') {
+        pauseGame()
+      }
     }
-  }, [direction, gameState])
+  }, [gameState])
+
+  const handleKeyUp = useCallback((e) => {
+    setKeys(prev => ({ ...prev, [e.key]: false }))
+  }, [])
 
   useEffect(() => {
-    document.addEventListener('keydown', handleKeyPress)
-    return () => document.removeEventListener('keydown', handleKeyPress)
-  }, [handleKeyPress])
+    document.addEventListener('keydown', handleKeyDown)
+    document.addEventListener('keyup', handleKeyUp)
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown)
+      document.removeEventListener('keyup', handleKeyUp)
+    }
+  }, [handleKeyDown, handleKeyUp])
 
   // Game loop
   useEffect(() => {
     if (gameState !== 'playing') return
 
     const gameLoop = setInterval(() => {
-      setSnake(currentSnake => {
-        const newSnake = [...currentSnake]
-        const head = { ...newSnake[0] }
-        
-        head.x += direction.x
-        head.y += direction.y
-
-        // Check wall collision
-        if (head.x < 0 || head.x >= gridSize || head.y < 0 || head.y >= gridSize) {
-          setGameState('gameOver')
-          return currentSnake
+      // Move player paddle
+      setPlayerPaddle(prev => {
+        let newY = prev.y
+        if (keys['ArrowUp'] || keys['w'] || keys['W']) {
+          newY = Math.max(0, prev.y - 5)
         }
-
-        // Check self collision
-        if (newSnake.some(segment => segment.x === head.x && segment.y === head.y)) {
-          setGameState('gameOver')
-          return currentSnake
+        if (keys['ArrowDown'] || keys['s'] || keys['S']) {
+          newY = Math.min(gameHeight - paddleHeight, prev.y + 5)
         }
-
-        newSnake.unshift(head)
-
-        // Check food collision
-        if (head.x === food.x && head.y === food.y) {
-          setScore(prev => prev + 10)
-          setFood({
-            x: Math.floor(Math.random() * gridSize),
-            y: Math.floor(Math.random() * gridSize)
-          })
-        } else {
-          newSnake.pop()
-        }
-
-        return newSnake
+        return { y: newY }
       })
-    }, 150)
+
+      // Move AI paddle (with some intelligence and difficulty scaling)
+      setAiPaddle(prev => {
+        const ballCenter = ball.y + ballSize / 2
+        const paddleCenter = prev.y + paddleHeight / 2
+        const diff = ballCenter - paddleCenter
+        const aiSpeed = 3 + gameSpeed * 0.5 // AI gets faster as game progresses
+        
+        let newY = prev.y
+        if (Math.abs(diff) > 10) {
+          if (diff > 0) {
+            newY = Math.min(gameHeight - paddleHeight, prev.y + aiSpeed)
+          } else {
+            newY = Math.max(0, prev.y - aiSpeed)
+          }
+        }
+        return { y: newY }
+      })
+
+      // Move ball
+      setBall(prev => {
+        let newBall = {
+          x: prev.x + prev.dx * gameSpeed,
+          y: prev.y + prev.dy * gameSpeed,
+          dx: prev.dx,
+          dy: prev.dy
+        }
+
+        // Ball collision with top/bottom walls
+        if (newBall.y <= 0 || newBall.y >= gameHeight - ballSize) {
+          newBall.dy = -newBall.dy
+          newBall.y = newBall.y <= 0 ? 0 : gameHeight - ballSize
+        }
+
+        // Ball collision with player paddle
+        if (newBall.x <= paddleWidth && 
+            newBall.y + ballSize >= playerPaddle.y && 
+            newBall.y <= playerPaddle.y + paddleHeight &&
+            newBall.dx < 0) {
+          const hitPos = (newBall.y + ballSize / 2 - playerPaddle.y) / paddleHeight
+          newBall.dx = Math.abs(newBall.dx)
+          newBall.dy = (hitPos - 0.5) * 8 // Add some angle based on where it hit
+        }
+
+        // Ball collision with AI paddle
+        if (newBall.x + ballSize >= gameWidth - paddleWidth && 
+            newBall.y + ballSize >= aiPaddle.y && 
+            newBall.y <= aiPaddle.y + paddleHeight &&
+            newBall.dx > 0) {
+          const hitPos = (newBall.y + ballSize / 2 - aiPaddle.y) / paddleHeight
+          newBall.dx = -Math.abs(newBall.dx)
+          newBall.dy = (hitPos - 0.5) * 8
+        }
+
+        // Scoring
+        if (newBall.x <= 0) {
+          setAiScore(score => score + 1)
+          setGameSpeed(speed => Math.min(speed + 0.1, 2))
+          return {
+            x: gameWidth / 2,
+            y: gameHeight / 2,
+            dx: 3,
+            dy: (Math.random() - 0.5) * 4
+          }
+        }
+
+        if (newBall.x >= gameWidth) {
+          setPlayerScore(score => {
+            const newScore = score + 1
+            if (newScore >= 10) {
+              setGameState('gameOver')
+            }
+            return newScore
+          })
+          setGameSpeed(speed => Math.min(speed + 0.1, 2))
+          return {
+            x: gameWidth / 2,
+            y: gameHeight / 2,
+            dx: -3,
+            dy: (Math.random() - 0.5) * 4
+          }
+        }
+
+        return newBall
+      })
+
+      // Check win condition
+      if (aiScore >= 10) {
+        setGameState('gameOver')
+      }
+    }, 16) // ~60 FPS
 
     return () => clearInterval(gameLoop)
-  }, [direction, food, gameState])
+  }, [gameState, keys, playerPaddle.y, aiPaddle.y, ball, gameSpeed, playerScore, aiScore])
 
   return (
     <div className="text-center space-y-4">
       <div className="flex justify-between items-center font-mono text-sm">
-        <span className="text-circuit-glow">Score: {score}</span>
-        <span className="text-circuit-muted">Use arrow keys to move</span>
+        <span className="text-circuit-glow">You: {playerScore}</span>
+        <span className="text-circuit-muted">Neural AI: {aiScore}</span>
+        <span className="text-circuit-trace">Speed: {gameSpeed.toFixed(1)}x</span>
       </div>
 
       <div 
         className="relative mx-auto border-2 border-circuit-glow bg-circuit-bg"
-        style={{ width: canvasSize, height: canvasSize }}
+        style={{ width: gameWidth, height: gameHeight }}
       >
-        {/* Snake */}
-        {snake.map((segment, index) => (
-          <div
-            key={index}
-            className={`absolute ${index === 0 ? 'bg-circuit-glow' : 'bg-circuit-hover'}`}
-            style={{
-              left: segment.x * (canvasSize / gridSize),
-              top: segment.y * (canvasSize / gridSize),
-              width: canvasSize / gridSize - 1,
-              height: canvasSize / gridSize - 1,
-            }}
-          />
-        ))}
-
-        {/* Food */}
-        <div
-          className="absolute bg-red-500 rounded-full"
+        {/* Center line */}
+        <div 
+          className="absolute bg-circuit-trace opacity-30"
           style={{
-            left: food.x * (canvasSize / gridSize),
-            top: food.y * (canvasSize / gridSize),
-            width: canvasSize / gridSize - 1,
-            height: canvasSize / gridSize - 1,
+            left: gameWidth / 2 - 1,
+            top: 0,
+            width: 2,
+            height: gameHeight,
+            backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 10px, currentColor 10px, currentColor 20px)'
           }}
         />
 
-        {/* Game State Overlay */}
+        {/* Player paddle */}
+        <div
+          className="absolute bg-circuit-glow shadow-glow rounded-sm"
+          style={{
+            left: 0,
+            top: playerPaddle.y,
+            width: paddleWidth,
+            height: paddleHeight,
+          }}
+        />
+
+        {/* AI paddle */}
+        <div
+          className="absolute bg-red-500 shadow-glow rounded-sm"
+          style={{
+            right: 0,
+            top: aiPaddle.y,
+            width: paddleWidth,
+            height: paddleHeight,
+          }}
+        />
+
+        {/* Ball */}
+        <div
+          className="absolute bg-circuit-glow rounded-full shadow-glow"
+          style={{
+            left: ball.x,
+            top: ball.y,
+            width: ballSize,
+            height: ballSize,
+          }}
+        />
+
+        {/* Game State Overlays */}
         {gameState === 'ready' && (
           <div className="absolute inset-0 bg-circuit-bg/90 flex items-center justify-center">
             <div className="text-center space-y-4">
-              <h3 className="font-mono text-circuit-glow text-xl">Circuit Snake</h3>
+              <h3 className="font-mono text-circuit-glow text-xl">Neural Pong</h3>
+              <p className="font-mono text-circuit-muted text-sm">
+                Use ↑↓ or W/S keys to move your paddle
+              </p>
+              <p className="font-mono text-circuit-trace text-xs">
+                First to 10 points wins • Press SPACE to pause
+              </p>
               <button
                 onClick={startGame}
                 className="px-6 py-3 bg-circuit-glow text-circuit-bg font-mono font-bold rounded-lg
@@ -299,11 +425,26 @@ const SnakeGame = () => {
           </div>
         )}
 
+        {gameState === 'paused' && (
+          <div className="absolute inset-0 bg-circuit-bg/90 flex items-center justify-center">
+            <div className="text-center space-y-4">
+              <h3 className="font-mono text-circuit-glow text-xl">PAUSED</h3>
+              <p className="font-mono text-circuit-muted text-sm">
+                Press SPACE to resume
+              </p>
+            </div>
+          </div>
+        )}
+
         {gameState === 'gameOver' && (
           <div className="absolute inset-0 bg-circuit-bg/90 flex items-center justify-center">
             <div className="text-center space-y-4">
-              <h3 className="font-mono text-red-500 text-xl">Game Over!</h3>
-              <p className="font-mono text-circuit-glow">Final Score: {score}</p>
+              <h3 className={`font-mono text-xl ${playerScore >= 10 ? 'text-circuit-glow' : 'text-red-500'}`}>
+                {playerScore >= 10 ? 'VICTORY!' : 'GAME OVER!'}
+              </h3>
+              <p className="font-mono text-circuit-glow">
+                Final Score: {playerScore} - {aiScore}
+              </p>
               <button
                 onClick={resetGame}
                 className="px-6 py-3 bg-circuit-glow text-circuit-bg font-mono font-bold rounded-lg
@@ -314,6 +455,11 @@ const SnakeGame = () => {
             </div>
           </div>
         )}
+      </div>
+
+      <div className="font-mono text-xs text-circuit-muted space-y-1">
+        <p>↑↓ or W/S: Move paddle • SPACE: Pause/Resume</p>
+        <p>AI gets smarter as the game progresses!</p>
       </div>
     </div>
   )
